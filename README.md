@@ -114,6 +114,60 @@ No authorization required
 - **Transaction Management**: Database transactions ensure that score submissions are atomic, and failures roll back any partial changes.
 - **Redis Retry Mechanism**: In the case of Redis failure, the system retries cache updates a few times before failing.
 
+## Scripts for Testing the Leaderboard
+The following scripts can be used to test the functionality of the leaderboard by creating users and submitting random scores for each user.
+
+### User registration script
+
+```bash
+for i in {1..120}
+do
+  curl -X POST "https://localhost:7105/api/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "Username": "user_'$i'",
+        "Password": "password_'$i'",
+        "DeviceId": "device_'$i'"
+      }'
+done
+```
+### Random score submission script
+```bash
+for i in {1..120}
+do
+  response=$(curl -X POST "https://localhost:7105/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "Username": "user_'$i'",
+        "Password": "password_'$i'"
+      }')
+
+  echo "Login response: $response"
+
+  token=$(echo $response | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+
+  if [ -z "$token" ]; then
+    echo "Error: Token is empty or invalid. Response: $response"
+    continue
+  else
+    echo "Token received: $token"
+  fi
+
+  random_score=$((RANDOM % 500 + 50))
+
+  curl -X POST "https://localhost:7105/api/game/submit-score" \
+  -H "Authorization: Bearer $token" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "MatchScore": '$random_score'
+      }'
+done
+   ```
+
+
+
+
+
 ## License
 
 This project is licensed under the MIT License.
