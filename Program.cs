@@ -61,6 +61,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+builder.Logging.AddConsole();
+
 app.UseHttpsRedirection();
 
 app.UseAuthentication(); 

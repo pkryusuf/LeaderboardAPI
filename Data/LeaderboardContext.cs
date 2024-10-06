@@ -15,6 +15,11 @@ namespace LeaderboardAPI.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Player>().HasIndex(p => p.Username).IsUnique();
+            modelBuilder.Entity<Score>().HasIndex(s => s.PlayerId);
+            modelBuilder.Entity<Score>().HasIndex(s => s.MatchScore);
+            modelBuilder.Entity<Player>().HasIndex(p => p.RegistrationDate);
+            modelBuilder.Entity<Player>().HasIndex(p => p.PlayerLevel);
+            modelBuilder.Entity<Player>().HasIndex(p => p.TrophyCount);
         }
     }
 
