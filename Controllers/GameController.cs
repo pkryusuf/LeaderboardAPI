@@ -108,8 +108,24 @@ namespace LeaderboardAPI.Controllers
                         };
                     }
 
-                    await _redisCache.SetStringAsync($"leaderboard:{playerId}", JsonConvert.SerializeObject(playerData));
-                    _logger.LogInformation("Oyuncu bilgileri Redis'e başarıyla kaydedildi. Oyuncu ID: {PlayerId}, Toplam Skor: {TotalScore}", playerId, playerData.TotalScore);
+                    var leaderboard = await _redisCache.GetLeaderboardAsync();
+                    if (leaderboard.Any(p => p.PlayerId == playerId || playerData.TotalScore > leaderboard.Last().TotalScore))
+                    {
+
+
+                        await _redisCache.SetStringAsync($"leaderboard:{playerId}", JsonConvert.SerializeObject(playerData));
+                        _logger.LogInformation("Oyuncu Redis'teki ilk 100 listesine eklendi. Oyuncu ID: {PlayerId}, Toplam Skor: {TotalScore}", playerId, playerData.TotalScore);
+
+                        var redisKeys = (RedisValue[])await _redisCache.GetLeaderboardKeysAsync();
+                        var leaderboardCount = redisKeys.Length;
+                        if (leaderboardCount > 100 && playerData.TotalScore > leaderboard.Last().TotalScore)
+                        {
+                            var lowestScoringPlayer = leaderboard.Last();
+                            await _redisCache.DeleteFromLeaderboardAsync(lowestScoringPlayer.PlayerId);
+                            _logger.LogInformation("En düşük skorlu oyuncu Redis'ten silindi. Oyuncu ID: {PlayerId}, Toplam Skor: {TotalScore}", lowestScoringPlayer.PlayerId, lowestScoringPlayer.TotalScore);
+                        }
+                    }
+
                     break;
                 }
                 catch (Exception ex)
@@ -121,6 +137,7 @@ namespace LeaderboardAPI.Controllers
 
             return playerData;
         }
+
 
         [HttpGet("leaderboard")]
         [AllowAnonymous]

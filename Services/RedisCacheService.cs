@@ -21,16 +21,23 @@ namespace LeaderboardAPI.Services
             _context = context;
         }
 
+
         public async Task CacheLeaderboardAsync(List<PlayerLeaderboardDto> leaderboard)
         {
-            foreach (var player in leaderboard)
+            var topPlayers = leaderboard
+                .OrderByDescending(p => p.TotalScore)
+                .ThenBy(p => p.RegistrationDate)
+                .ThenByDescending(p => p.PlayerLevel)
+                .ThenByDescending(p => p.TrophyCount)
+                .Take(100)
+                .ToList();
+
+            foreach (var player in topPlayers)
             {
                 await _redisDb.StringSetAsync($"leaderboard:{player.PlayerId}", JsonConvert.SerializeObject(player));
-                _logger.LogInformation("Liderlik tablosu Redis'e kaydedildi. Oyuncu ID: {PlayerId}, Toplam Skor: {TotalScore}", player.PlayerId, player.TotalScore);
-
+                _logger.LogInformation("Liderlik tablosunun ilk 100 oyuncusu Redis'e kaydedildi. Oyuncu ID: {PlayerId}, Toplam Skor: {TotalScore}", player.PlayerId, player.TotalScore);
             }
         }
-
         public async Task<List<PlayerLeaderboardDto>> GetLeaderboardAsync()
         {
             _logger.LogInformation("Liderlik tablosu Redis'ten alınmaya çalışılıyor.");
@@ -41,7 +48,6 @@ namespace LeaderboardAPI.Services
             if (redisKeys.Length == 0)
             {
                 _logger.LogWarning("Redis'te liderlik tablosu bulunamadı. PostgreSQL'den yükleniyor...");
-
                 var playersFromDb = await _context.Players
                     .Include(p => p.Scores)
                     .Select(p => new PlayerLeaderboardDto
@@ -55,9 +61,8 @@ namespace LeaderboardAPI.Services
                     .ToListAsync();
 
                 await CacheLeaderboardAsync(playersFromDb);
-                _logger.LogInformation("PostgreSQL'den alınan liderlik tablosu Redis'e kaydedildi. Oyuncu sayısı: {Count}", playersFromDb.Count);
-
-                leaderboard = playersFromDb;
+                _logger.LogInformation("PostgreSQL'den alınan liderlik tablosu Redis'e kaydedildi.");
+                leaderboard = playersFromDb.Take(100).ToList();
             }
             else
             {
@@ -72,36 +77,41 @@ namespace LeaderboardAPI.Services
                     {
                         var playerData = JsonConvert.DeserializeObject<PlayerLeaderboardDto>(playerScoreJson);
                         leaderboard.Add(playerData);
-                        _logger.LogInformation("Oyuncu Redis'ten alındı. Oyuncu ID: {PlayerId}, Toplam Skor: {TotalScore}", playerData.PlayerId, playerData.TotalScore);
                     }
                 }
 
-                _logger.LogInformation("Liderlik tablosu Redis'ten başarıyla toplandı. Sıralama başlatılıyor...");
-                
                 leaderboard = leaderboard
                     .OrderByDescending(p => p.TotalScore)
                     .ThenBy(p => p.RegistrationDate)
                     .ThenByDescending(p => p.PlayerLevel)
                     .ThenByDescending(p => p.TrophyCount)
                     .ToList();
-
-                _logger.LogInformation("Liderlik tablosu başarıyla sıralandı.");
             }
 
             return leaderboard;
         }
 
+
         public async Task<string> GetStringAsync(string key)
         {
-            _logger.LogInformation("Redis'ten veri alınıyor. Key: {Key}", key);
             return await _redisDb.StringGetAsync(key);
         }
 
         public async Task SetStringAsync(string key, string value)
         {
-            _logger.LogInformation("Redis'e veri kaydediliyor. Key: {Key}", key);
             await _redisDb.StringSetAsync(key, value);
         }
+        public async Task DeleteFromLeaderboardAsync(int playerId)
+        {
+            await _redisDb.KeyDeleteAsync($"leaderboard:{playerId}");
+            _logger.LogInformation("Oyuncu Redis'ten silindi. Oyuncu ID: {PlayerId}", playerId);
+        }
+        public async Task<RedisValue[]> GetLeaderboardKeysAsync()
+        {
+            var redisKeys = (RedisValue[])await _redisDb.ExecuteAsync("KEYS", "leaderboard:*");
+            return redisKeys;
+        }
+
 
 
     }
