@@ -42,7 +42,6 @@ namespace LeaderboardAPI.Services
             {
                 _logger.LogWarning("Redis'te liderlik tablosu bulunamadı. PostgreSQL'den yükleniyor...");
 
-                // Redis çöktüyse PostgreSQL'den liderlik tablosunu yükle
                 var playersFromDb = await _context.Players
                     .Include(p => p.Scores)
                     .Select(p => new PlayerLeaderboardDto
@@ -55,7 +54,6 @@ namespace LeaderboardAPI.Services
                     })
                     .ToListAsync();
 
-                // Redis'e geri yazalım
                 await CacheLeaderboardAsync(playersFromDb);
                 _logger.LogInformation("PostgreSQL'den alınan liderlik tablosu Redis'e kaydedildi. Oyuncu sayısı: {Count}", playersFromDb.Count);
 
